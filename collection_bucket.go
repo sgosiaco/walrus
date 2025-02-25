@@ -130,10 +130,10 @@ func (cb *CollectionBucket) Close(ctx context.Context) {
 }
 
 // CloseAndDelete calls closeAndDelete on the underlying buckets when using persisted buckets
-func (cb *CollectionBucket) CloseAndDelete() error {
+func (cb *CollectionBucket) CloseAndDelete(ctx context.Context) error {
 
 	if cb.dir == "" {
-		cb.Close(context.TODO())
+		cb.Close(ctx)
 		return nil
 	}
 
@@ -288,6 +288,7 @@ func (wh *CollectionBucket) StartDCPFeed(ctx context.Context, args sgbucket.Feed
 	return nil
 }
 
+/*
 func (wh *CollectionBucket) IsError(err error, errorType sgbucket.DataStoreErrorType) bool {
 	if err == nil {
 		return false
@@ -300,6 +301,7 @@ func (wh *CollectionBucket) IsError(err error, errorType sgbucket.DataStoreError
 		return false
 	}
 }
+*/
 
 func (wh *CollectionBucket) GetCollectionID(scope, collection string) (uint32, error) {
 

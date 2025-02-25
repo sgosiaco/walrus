@@ -268,7 +268,7 @@ func TestGetPersistentMultiCollectionBucket(t *testing.T) {
 	assert.Equal(t, "c2_value", reloadedValue)
 
 	// Close and Delete the bucket, should delete underlying collections
-	require.NoError(t, reloadedHuddle.CloseAndDelete())
+	require.NoError(t, reloadedHuddle.CloseAndDelete(context.TODO()))
 
 	// Attempt to reopen persisted collectionBucket
 	postDeleteHuddle, err := GetCollectionBucket(fmt.Sprintf("walrus:%s", tmpdir), "buckit")
@@ -279,6 +279,6 @@ func TestGetPersistentMultiCollectionBucket(t *testing.T) {
 	_, err = postDeleteC2.Get("doc1", &postDeleteValue)
 	require.Error(t, err)
 	require.True(t, errors.As(err, &sgbucket.MissingError{}))
-	require.NoError(t, postDeleteHuddle.CloseAndDelete())
+	require.NoError(t, postDeleteHuddle.CloseAndDelete(context.TODO()))
 
 }

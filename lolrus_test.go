@@ -305,19 +305,19 @@ func TestWriteCas(t *testing.T) {
 	// Insert
 	var obj interface{}
 	err := json.Unmarshal([]byte(`{"value":"value1"}`), &obj)
-	cas, err := bucket.WriteCas("key1", 0, 0, 0, obj, 0)
+	cas, err := bucket.WriteCas("key1", 0, 0, obj, 0)
 	assertNoError(t, err, "WriteCas")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 
 	// Update document with wrong (zero) cas value
 	err = json.Unmarshal([]byte(`{"value":"value2"}`), &obj)
-	newCas, err := bucket.WriteCas("key1", 0, 0, 0, obj, 0)
+	newCas, err := bucket.WriteCas("key1", 0, 0, obj, 0)
 	assertTrue(t, err != nil, "Invalid cas should have returned error.")
 	assert.Equal(t, uint64(0), newCas)
 
 	// Update document with correct cas value
 	err = json.Unmarshal([]byte(`{"value":"value2"}`), &obj)
-	newCas, err = bucket.WriteCas("key1", 0, 0, cas, obj, 0)
+	newCas, err = bucket.WriteCas("key1", 0, cas, obj, 0)
 	assertTrue(t, err == nil, "Valid cas should not have returned error.")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 	assertTrue(t, cas != newCas, "Cas value should change on successful update")
@@ -328,23 +328,23 @@ func TestWriteCas(t *testing.T) {
 
 	// Update document with obsolete case value
 	err = json.Unmarshal([]byte(`{"value":"value3"}`), &obj)
-	newCas, err = bucket.WriteCas("key1", 0, 0, cas, obj, 0)
+	newCas, err = bucket.WriteCas("key1", 0, cas, obj, 0)
 	assertTrue(t, err != nil, "Invalid cas should have returned error.")
 	assert.Equal(t, uint64(0), newCas)
 
 	// Add with WriteCas - raw docs
 	// Insert
-	cas, err = bucket.WriteCas("keyraw1", 0, 0, 0, []byte("value1"), sgbucket.Raw)
+	cas, err = bucket.WriteCas("keyraw1", 0, 0, []byte("value1"), sgbucket.Raw)
 	assertNoError(t, err, "WriteCas")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 
 	// Update document with wrong (zero) cas value
-	newCas, err = bucket.WriteCas("keyraw1", 0, 0, 0, []byte("value2"), sgbucket.Raw)
+	newCas, err = bucket.WriteCas("keyraw1", 0, 0, []byte("value2"), sgbucket.Raw)
 	assertTrue(t, err != nil, "Invalid cas should have returned error.")
 	assert.Equal(t, uint64(0), newCas)
 
 	// Update document with correct cas value
-	newCas, err = bucket.WriteCas("keyraw1", 0, 0, cas, []byte("value2"), sgbucket.Raw)
+	newCas, err = bucket.WriteCas("keyraw1", 0, cas, []byte("value2"), sgbucket.Raw)
 	assertTrue(t, err == nil, "Valid cas should not have returned error.")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 	assertTrue(t, cas != newCas, "Cas value should change on successful update")
@@ -353,14 +353,14 @@ func TestWriteCas(t *testing.T) {
 	assert.Equal(t, newCas, getCas)
 
 	// Update document with obsolete cas value
-	newCas, err = bucket.WriteCas("keyraw1", 0, 0, cas, []byte("value3"), sgbucket.Raw)
+	newCas, err = bucket.WriteCas("keyraw1", 0, cas, []byte("value3"), sgbucket.Raw)
 	assertTrue(t, err != nil, "Invalid cas should have returned error.")
 	assert.Equal(t, uint64(0), newCas)
 
 	// Delete document, attempt to recreate w/ cas set to 0
 	err = bucket.Delete("keyraw1")
 	assertTrue(t, err == nil, "Delete failed")
-	newCas, err = bucket.WriteCas("keyraw1", 0, 0, 0, []byte("resurrectValue"), sgbucket.Raw)
+	newCas, err = bucket.WriteCas("keyraw1", 0, 0, []byte("resurrectValue"), sgbucket.Raw)
 	assertTrue(t, err == nil, "Recreate with cas=0 should succeed.")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 	value, getCas, err = bucket.GetRaw("keyraw1")
@@ -379,13 +379,13 @@ func TestRemove(t *testing.T) {
 	// Insert
 	var obj interface{}
 	err := json.Unmarshal([]byte(`{"value":"value1"}`), &obj)
-	cas, err := bucket.WriteCas("key1", 0, 0, 0, obj, 0)
+	cas, err := bucket.WriteCas("key1", 0, 0, obj, 0)
 	assertNoError(t, err, "WriteCas")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 
 	// Update document with correct cas value
 	err = json.Unmarshal([]byte(`{"value":"value2"}`), &obj)
-	newCas, err := bucket.WriteCas("key1", 0, 0, cas, obj, 0)
+	newCas, err := bucket.WriteCas("key1", 0, cas, obj, 0)
 	assertTrue(t, err == nil, "Valid cas should not have returned error.")
 	assertTrue(t, cas > 0, "Cas value should be greater than zero")
 	assertTrue(t, cas != newCas, "Cas value should change on successful update")
@@ -417,9 +417,9 @@ func TestNonRawBytes(t *testing.T) {
 	byteBody := []byte(`{"value":"value1"}`)
 
 	// Add with WriteCas - JSON doc as []byte and *[]byte
-	cas, err := bucket.WriteCas("writeCas1", 0, 0, 0, byteBody, 0)
+	cas, err := bucket.WriteCas("writeCas1", 0, 0, byteBody, 0)
 	assertNoError(t, err, "WriteCas []byte")
-	cas, err = bucket.WriteCas("writeCas2", 0, 0, 0, &byteBody, 0)
+	cas, err = bucket.WriteCas("writeCas2", 0, 0, &byteBody, 0)
 	assertNoError(t, err, "WriteCas *[]byte")
 
 	// Add with Add - JSON doc as []byte and *[]byte

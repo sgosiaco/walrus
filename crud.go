@@ -31,6 +31,7 @@ const (
 )
 
 var _ sgbucket.DataStore = &WalrusBucket{}
+var _ sgbucket.ViewStore = &WalrusBucket{}
 
 var MaxDocSize = 0 // Used during the write function
 
@@ -57,7 +58,7 @@ type WalrusBucket struct {
 	lastSeqSaved uint64                     // LastSeq at time of last save
 	lock         sync.RWMutex               // For thread-safety
 	views        map[string]walrusDesignDoc // Stores runtime view/index data
-	vbSeqs       sgbucket.VbucketSeqCounter // Per-vb sequence couner
+	vbSeqs       VbucketSeqCounter          // Per-vb sequence couner
 	tapFeeds     []*tapFeedImpl
 	walrusData
 }
@@ -84,7 +85,7 @@ func NewBucket(bucketName string) *WalrusBucket {
 			Docs:       map[string]*walrusDoc{},
 			DesignDocs: map[string]*sgbucket.DesignDoc{},
 		},
-		vbSeqs: sgbucket.NewMapVbucketSeqCounter(SimulatedVBucketCount),
+		vbSeqs: NewMapVbucketSeqCounter(SimulatedVBucketCount),
 		views:  map[string]walrusDesignDoc{},
 	}
 	runtime.SetFinalizer(bucket, (*WalrusBucket).CloseAndDelete)
@@ -183,6 +184,18 @@ func (bucket *WalrusBucket) _nextSequence() uint64 {
 
 func (bucket *WalrusBucket) GetName() string {
 	return bucket.name // name is immutable so this needs no lock
+}
+
+func (bucket *WalrusBucket) GetCollectionID() uint32 {
+	return 0 // According to docs, default collection always has the ID zero
+}
+
+func (bucket *WalrusBucket) CollectionName() string {
+	return sgbucket.DefaultCollection // return default collection name for now
+}
+
+func (bucket *WalrusBucket) ScopeName() string {
+	return sgbucket.DefaultScope // return default scope name for now
 }
 
 func (bucket *WalrusBucket) Close(_ context.Context) {
@@ -325,7 +338,7 @@ func (bucket *WalrusBucket) Write(k string, flags int, exp uint32, v interface{}
 	return bucket.waitAfterWrite(seq, opt)
 }
 
-func (bucket *WalrusBucket) WriteCas(k string, flags int, exp uint32, cas uint64, v interface{}, opt sgbucket.WriteOptions) (casOut uint64, err error) {
+func (bucket *WalrusBucket) WriteCas(k string, exp uint32, cas uint64, v interface{}, opt sgbucket.WriteOptions) (casOut uint64, err error) {
 
 	// Marshal JSON if the value is not raw:
 	isJSON := (opt&sgbucket.Raw == 0)
@@ -370,6 +383,9 @@ func (bucket *WalrusBucket) Remove(k string, cas uint64) (casOut uint64, err err
 	return casOut, nil
 }
 
+/*
+Note: Removed b/c legacy
+
 func (bucket *WalrusBucket) SetBulk(entries []*sgbucket.BulkSetEntry) (err error) {
 	for _, entry := range entries {
 		casOut, err := bucket.WriteCas(
@@ -385,6 +401,15 @@ func (bucket *WalrusBucket) SetBulk(entries []*sgbucket.BulkSetEntry) (err error
 	}
 	return nil
 }
+*/
+
+func (bucket *WalrusBucket) WriteResurrectionWithXattrs(_ context.Context, k string, exp uint32, body []byte, xattrs map[string][]byte, opts *sgbucket.MutateInOptions) (casOut uint64, err error) {
+	return 0, errors.New("WriteResurrectionWithXattrs not implemented for walrus")
+}
+
+func (bucket *WalrusBucket) WriteTombstoneWithXattrs(_ context.Context, k string, exp uint32, cas uint64, xattrValue map[string][]byte, xattrsToDelete []string, deleteBody bool, opts *sgbucket.MutateInOptions) (casOut uint64, err error) {
+	return 0, errors.New("WriteTombstoneWithXattrs not implemented for walrus")
+}
 
 func (bucket *WalrusBucket) WriteCasWithXattr(_ context.Context, k string, xattrKey string, exp uint32, cas uint64, opts *sgbucket.MutateInOptions, v interface{}, xv interface{}) (casOut uint64, err error) {
 	return 0, errors.New("WriteCasWithXattr not implemented for walrus")
@@ -394,16 +419,36 @@ func (bucket *WalrusBucket) WriteWithXattr(_ context.Context, k string, xattrKey
 	return 0, errors.New("WriteWithXattr not implemented for walrus")
 }
 
+func (bucket *WalrusBucket) WriteWithXattrs(_ context.Context, k string, exp uint32, cas uint64, value []byte, xattrsValues map[string][]byte, xattrsToDelete []string, opts *sgbucket.MutateInOptions) (casOut uint64, err error) {
+	return 0, errors.New("WriteWithXattrs not implemented for walrus")
+}
+
 func (bucket *WalrusBucket) GetWithXattr(_ context.Context, k string, xattrKey string, userXattrKey string, rv interface{}, xv interface{}, uxv interface{}) (cas uint64, err error) {
 	return 0, errors.New("GetWithXattr not implemented for walrus")
+}
+
+func (bucket *WalrusBucket) GetWithXattrs(_ context.Context, k string, xattrKeys []string) (v []byte, xv map[string][]byte, cas uint64, err error) {
+	return nil, nil, 0, errors.New("GetWithXattrs not implemented for walrus")
 }
 
 func (bucket *WalrusBucket) DeleteWithXattr(_ context.Context, k string, xattrKey string) error {
 	return errors.New("DeleteWithXattr not implemented for walrus")
 }
 
+func (bucket *WalrusBucket) DeleteWithXattrs(_ context.Context, k string, xattrKeys []string) error {
+	return errors.New("DeleteWithXattrs not implemented for walrus")
+}
+
+func (bucket *WalrusBucket) DeleteSubDocPaths(_ context.Context, k string, paths ...string) (err error) {
+	return errors.New("DeleteSubDocPaths not implemented for walrus")
+}
+
 func (bucket *WalrusBucket) GetXattr(_ context.Context, k string, xattrKey string, xv interface{}) (casOut uint64, err error) {
 	return 0, errors.New("GetXattr not implemented for walrus")
+}
+
+func (bucket *WalrusBucket) GetXattrs(_ context.Context, k string, xattrKeys []string) (xattrs map[string][]byte, casOut uint64, err error) {
+	return nil, 0, errors.New("GetXattrs not implemented for walrus")
 }
 
 // Returns true if the subDocKey would be using nested sub docs
@@ -459,14 +504,14 @@ func (bucket *WalrusBucket) WriteSubDoc(_ context.Context, k string, subdocKey s
 	fullDoc[subdocKey] = subDocVal
 
 	// Write full doc body to bucket
-	casOut, err = bucket.WriteCas(k, 0, 0, casOut, fullDoc, 0)
+	casOut, err = bucket.WriteCas(k, 0, casOut, fullDoc, 0)
 	if err != nil {
 		return 0, err
 	}
 	return casOut, nil
 }
 
-func (bucket *WalrusBucket) WriteUpdateWithXattr(_ context.Context, k string, xattrKey string, userXattrKey string, exp uint32, opts *sgbucket.MutateInOptions, previous *sgbucket.BucketDocument, callback sgbucket.WriteUpdateWithXattrFunc) (casOut uint64, err error) {
+func (bucket *WalrusBucket) WriteUpdateWithXattrs(_ context.Context, k string, xattrs []string, exp uint32, previous *sgbucket.BucketDocument, opts *sgbucket.MutateInOptions, callback sgbucket.WriteUpdateWithXattrsFunc) (casOut uint64, err error) {
 	return 0, errors.New("WriteUpdateWithXattr not implemented for walrus")
 }
 
@@ -474,12 +519,24 @@ func (bucket *WalrusBucket) SetXattr(_ context.Context, k string, xattrKey strin
 	return 0, errors.New("SetXattr not implemented for walrus")
 }
 
+func (bucket *WalrusBucket) SetXattrs(_ context.Context, k string, xattrs map[string][]byte) (casOut uint64, err error) {
+	return 0, errors.New("SetXattrs not implemented for walrus")
+}
+
 func (bucket *WalrusBucket) RemoveXattr(_ context.Context, k string, xattrKey string, cas uint64) error {
+	return errors.New("RemoveXattr not implemented for walrus")
+}
+
+func (bucket *WalrusBucket) RemoveXattrs(_ context.Context, k string, xattrKeys []string, cas uint64) (err error) {
 	return errors.New("RemoveXattr not implemented for walrus")
 }
 
 func (bucket *WalrusBucket) DeleteXattrs(_ context.Context, k string, xattrKeys ...string) error {
 	return errors.New("DeleteXattrs not implemented for walrus")
+}
+
+func (bucket *WalrusBucket) UpdateXattrs(_ context.Context, k string, exp uint32, cas uint64, xv map[string][]byte, opts *sgbucket.MutateInOptions) (casOut uint64, err error) {
+	return 0, errors.New("UpdateXattrs not implemented for walrus")
 }
 
 func (bucket *WalrusBucket) SubdocInsert(_ context.Context, docID string, fieldPath string, cas uint64, value interface{}) error {
@@ -622,13 +679,14 @@ func (bucket *WalrusBucket) Append(k string, data []byte) error {
 
 //////// UPDATE:
 
-func (bucket *WalrusBucket) WriteUpdate(k string, exp uint32, callback sgbucket.WriteUpdateFunc) (casOut uint64, err error) {
+// Note: Removed from interface b/c legacy
+func (bucket *WalrusBucket) WriteUpdate(k string, exp uint32, callback sgbucket.UpdateFunc) (casOut uint64, err error) {
 
 	var opts sgbucket.WriteOptions
 	var seq uint64
 	for {
 		var doc walrusDoc = bucket.getDoc(k)
-		doc.Raw, opts, _, err = callback(copySlice(doc.Raw))
+		doc.Raw, _, _, err = callback(copySlice(doc.Raw))
 		doc.IsJSON = doc.Raw != nil && ((opts & sgbucket.Raw) == 0)
 		if err != nil {
 			return doc.Sequence, err
@@ -650,11 +708,11 @@ func (bucket *WalrusBucket) WriteUpdate(k string, exp uint32, callback sgbucket.
 }
 
 func (bucket *WalrusBucket) Update(k string, exp uint32, callback sgbucket.UpdateFunc) (casOut uint64, err error) {
-	writeCallback := func(current []byte) (updated []byte, opts sgbucket.WriteOptions, expiry *uint32, err error) {
-		updated, expiry, _, err = callback(current)
-		return updated, opts, expiry, err
-	}
-	return bucket.WriteUpdate(k, exp, writeCallback)
+	// writeCallback := func(current []byte) (updated []byte, opts sgbucket.WriteOptions, expiry *uint32, err error) {
+	// 	updated, expiry, _, err = callback(current)
+	// 	return updated, opts, expiry, err
+	// }
+	return bucket.WriteUpdate(k, exp, callback)
 }
 
 // Looks up a walrusDoc and returns a copy of it, or an empty doc if one doesn't exist yet
@@ -781,6 +839,7 @@ func (bucket *WalrusBucket) UUID() (string, error) {
 	return bucket.uuid, nil
 }
 
+/*
 func (bucket *WalrusBucket) IsError(err error, errorType sgbucket.DataStoreErrorType) bool {
 	if err == nil {
 		return false
@@ -793,6 +852,7 @@ func (bucket *WalrusBucket) IsError(err error, errorType sgbucket.DataStoreError
 		return false
 	}
 }
+*/
 
 func (bucket *WalrusBucket) IsSupported(feature sgbucket.BucketStoreFeature) bool {
 	switch feature {

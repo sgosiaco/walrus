@@ -156,7 +156,8 @@ func (bucket *WalrusBucket) View(_ context.Context, docName, viewName string, pa
 		result = bucket.updateView(view, 0)
 	}
 
-	return sgbucket.ProcessViewResult(result, params, bucket, view.reduceFunction)
+	err := result.Process(params, bucket, view.reduceFunction)
+	return result, err
 }
 
 func (bucket *WalrusBucket) ViewQuery(ctx context.Context, ddoc, name string, params map[string]interface{}) (sgbucket.QueryResultIterator, error) {
@@ -199,11 +200,14 @@ func (bucket *WalrusBucket) updateView(view *walrusView, toSequence uint64) sgbu
 	mapper := func(input jsMapFunctionInput, output chan<- interface{}) {
 		rows, err := mapFunction.CallFunction(
 			context.TODO(),
-			string(input.raw),
-			input.docid,
-			input.vbNo,
-			input.vbSeq,
+			&sgbucket.JSMapFunctionInput{
+				Doc:   string(input.raw),
+				DocID: input.docid,
+				VbNo:  input.vbNo,
+				VbSeq: input.vbSeq,
+			},
 		)
+
 		if err != nil {
 			log.Printf("Error running map function: %s", err)
 			output <- sgbucket.ViewError{From: input.docid, Reason: err.Error()}
@@ -264,7 +268,7 @@ func (bucket *WalrusBucket) updateView(view *walrusView, toSequence uint64) sgbu
 		}
 	}
 
-	sort.Sort(&result)
+	result.Sort()
 	result.Collator.Clear() // don't keep collation state around
 
 	view.lastIndexedSequence = bucket.LastSeq
