@@ -1,4 +1,4 @@
-module github.com/couchbaselabs/walrus
+module github.com/sgosiaco/walrus
 
 go 1.22
 
